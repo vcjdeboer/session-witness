@@ -67,7 +67,9 @@ function safeName(s: string): string {
 
 async function sha256Hex(s: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(d)).map((b) =>
+    b.toString(16).padStart(2, "0")
+  ).join("");
 }
 
 interface Rec {
@@ -103,16 +105,20 @@ async function readSession(
   recordDef: string,
   sessionArg: string,
 ): Promise<{ session: string; recs: Rec[] }> {
-  const vres = (await swampJson(g, ["data", "versions", recordDef, "log", "--json"])) as
-    | { versions?: Array<{ version: number; checksum?: string }> }
-    | null;
-  const versions = (vres?.versions ?? []).slice().sort((a, b) => b.version - a.version);
+  const vres =
+    (await swampJson(g, ["data", "versions", recordDef, "log", "--json"])) as
+      | { versions?: Array<{ version: number; checksum?: string }> }
+      | null;
+  const versions = (vres?.versions ?? []).slice().sort((a, b) =>
+    b.version - a.version
+  );
 
   let target = sessionArg;
   if (!target) {
-    const latest = (await swampJson(g, ["data", "get", recordDef, "log", "--json"])) as
-      | { content?: { session?: string } }
-      | null;
+    const latest =
+      (await swampJson(g, ["data", "get", recordDef, "log", "--json"])) as
+        | { content?: { session?: string } }
+        | null;
     target = latest?.content?.session ?? "";
   }
 
@@ -120,8 +126,16 @@ async function readSession(
   let started = false;
   for (const v of versions) {
     const got = (await swampJson(g, [
-      "data", "get", recordDef, "log", "--version", String(v.version), "--json",
-    ])) as { content?: { session?: string; seq?: number; client?: { name?: string } } } | null;
+      "data",
+      "get",
+      recordDef,
+      "log",
+      "--version",
+      String(v.version),
+      "--json",
+    ])) as {
+      content?: { session?: string; seq?: number; client?: { name?: string } };
+    } | null;
     const c = got?.content;
     if (!c) continue;
     if (c.session === target) {
@@ -147,7 +161,11 @@ function chainString(recs: Rec[]): string {
 
 interface WitnessContext {
   globalArgs: GlobalArgs;
-  writeResource: (s: string, i: string, d: unknown) => Promise<{ version: number }>;
+  writeResource: (
+    s: string,
+    i: string,
+    d: unknown,
+  ) => Promise<{ version: number }>;
   logger: { info: (m: string, p?: Record<string, unknown>) => void };
 }
 
@@ -158,13 +176,15 @@ export const model = {
   globalArguments: GlobalArgsSchema,
   resources: {
     "attestation": {
-      description: "A tamper-evident seal over one recorded session (digest + authorship)",
+      description:
+        "A tamper-evident seal over one recorded session (digest + authorship)",
       schema: AttestationSchema,
       lifetime: "infinite",
       garbageCollection: 100,
     },
     "verification": {
-      description: "Result of re-checking a session's digest against a prior seal",
+      description:
+        "Result of re-checking a session's digest against a prior seal",
       schema: VerificationSchema,
       lifetime: "infinite",
       garbageCollection: 100,
@@ -172,55 +192,83 @@ export const model = {
   },
   methods: {
     "seal": {
-      description: "Seal a session's records into one sha256 digest and attest its authors",
+      description:
+        "Seal a session's records into one sha256 digest and attest its authors",
       arguments: SealArgsSchema,
       execute: async (
         args: z.infer<typeof SealArgsSchema>,
         context: WitnessContext,
       ): Promise<{ dataHandles: unknown[] }> => {
-        const { session, recs } = await readSession(context.globalArgs, args.recordDef, args.session);
+        const { session, recs } = await readSession(
+          context.globalArgs,
+          args.recordDef,
+          args.session,
+        );
         const digest = await sha256Hex(chainString(recs));
         const clients = [...new Set(recs.map((r) => r.client).filter(Boolean))];
         const seqs = recs.map((r) => r.seq);
-        const seqRange = recs.length ? `${Math.min(...seqs)}-${Math.max(...seqs)}` : "";
+        const seqRange = recs.length
+          ? `${Math.min(...seqs)}-${Math.max(...seqs)}`
+          : "";
 
-        const handle = await context.writeResource("attestation", safeName(session), {
-          session,
-          records: recs.length,
-          seqRange,
-          clients,
-          digest,
-          algo: "sha256-chain",
-          witnessedAt: new Date().toISOString(),
-          witness: "session-witness",
-        });
+        const handle = await context.writeResource(
+          "attestation",
+          safeName(session),
+          {
+            session,
+            records: recs.length,
+            seqRange,
+            clients,
+            digest,
+            algo: "sha256-chain",
+            witnessedAt: new Date().toISOString(),
+            witness: "session-witness",
+          },
+        );
         context.logger.info(
           "Sealed session {session}: {n} records, clients [{clients}], digest {digest}",
-          { session, n: recs.length, clients: clients.join(", "), digest: digest.slice(0, 12) },
+          {
+            session,
+            n: recs.length,
+            clients: clients.join(", "),
+            digest: digest.slice(0, 12),
+          },
         );
         return { dataHandles: [handle] };
       },
     },
     "verify": {
-      description: "Recompute a session's digest and report whether it matches a prior seal",
+      description:
+        "Recompute a session's digest and report whether it matches a prior seal",
       arguments: VerifyArgsSchema,
       execute: async (
         args: z.infer<typeof VerifyArgsSchema>,
         context: WitnessContext,
       ): Promise<{ dataHandles: unknown[] }> => {
-        const { session, recs } = await readSession(context.globalArgs, args.recordDef, args.session);
+        const { session, recs } = await readSession(
+          context.globalArgs,
+          args.recordDef,
+          args.session,
+        );
         const actual = await sha256Hex(chainString(recs));
         const match = actual === args.expectedDigest;
 
-        const handle = await context.writeResource("verification", `${safeName(session)}-verify`, {
+        const handle = await context.writeResource(
+          "verification",
+          `${safeName(session)}-verify`,
+          {
+            session,
+            match,
+            expected: args.expectedDigest,
+            actual,
+            records: recs.length,
+            checkedAt: new Date().toISOString(),
+          },
+        );
+        context.logger.info("Verified session {session}: match={match}", {
           session,
           match,
-          expected: args.expectedDigest,
-          actual,
-          records: recs.length,
-          checkedAt: new Date().toISOString(),
         });
-        context.logger.info("Verified session {session}: match={match}", { session, match });
         return { dataHandles: [handle] };
       },
     },
