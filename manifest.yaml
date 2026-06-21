@@ -1,0 +1,17 @@
+manifestVersion: 1
+name: "@vcjdeboer/session-witness"
+version: "2026.06.21.1"
+description: "An ultralight, tamper-evident seal over a recorded session: chains the swamp content checksums of a session-record ledger's versions into one sha256 session digest and attests its authors; verify recomputes it. Alter any past record and the digest changes. The master member of the swamp session-* suite."
+repository: "https://github.com/vcjdeboer/session-witness"
+paths:
+  base: manifest
+models:
+  - session_witness.ts
+additionalFiles:
+  - README.md
+  - LICENSE.md
+labels:
+  - provenance
+  - integrity
+  - reproducibility
+  - attestation
