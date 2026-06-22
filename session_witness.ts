@@ -191,7 +191,7 @@ export const model = {
     },
   },
   methods: {
-    "seal": {
+    seal: {
       description:
         "Seal a session's records into one sha256 digest and attest its authors",
       arguments: SealArgsSchema,
@@ -237,7 +237,7 @@ export const model = {
         return { dataHandles: [handle] };
       },
     },
-    "verify": {
+    verify: {
       description:
         "Recompute a session's digest and report whether it matches a prior seal",
       arguments: VerifyArgsSchema,
