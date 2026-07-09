@@ -40,8 +40,12 @@ const VerifyArgsSchema = z.object({
 
 const AttestationSchema = z.object({
   session: z.string(),
+  /** "ledger" = seq-ordered session-record versions; "manifest" = a named-item bundle. */
+  kind: z.enum(["ledger", "manifest"]).default("ledger"),
   records: z.number().int(),
   seqRange: z.string().default(""),
+  /** For kind="manifest": the ordered item names that were chained. */
+  items: z.array(z.string()).default([]),
   /** Distinct recorder clients that authored the session. */
   clients: z.array(z.string()).default([]),
   /** sha256 over the seq-ordered chain of per-record swamp checksums. */
@@ -49,6 +53,15 @@ const AttestationSchema = z.object({
   algo: z.string().default("sha256-chain"),
   witnessedAt: z.string(),
   witness: z.string().default("session-witness"),
+});
+
+const SealManifestArgsSchema = z.object({
+  /** Session/bundle label this attestation is over (becomes the instance name). */
+  session: z.string().default(""),
+  /** The ordered items to chain — each carries swamp's content checksum. */
+  items: z.array(z.object({ name: z.string(), checksum: z.string() })).min(1),
+  /** Optional author/tool attribution recorded on the attestation. */
+  author: z.string().default(""),
 });
 
 const VerificationSchema = z.object({
@@ -154,9 +167,23 @@ async function readSession(
   return { session: target, recs };
 }
 
+/**
+ * The generalized seal primitive: chain an ordered list of `{name, checksum}`
+ * items into `name\tchecksum` lines (in the given order) and sha256 the chain.
+ * Both the ledger `seal` (name = record seq) and the bundle `seal_manifest`
+ * (name = resource name) go through this one primitive, so the digest algorithm
+ * lives in exactly one place. Pure over its input.
+ */
+export async function sealManifest(
+  items: Array<{ name: string; checksum: string }>,
+): Promise<{ digest: string; chain: string }> {
+  const chain = items.map((i) => `${i.name}\t${i.checksum}`).join("\n");
+  return { digest: await sha256Hex(chain), chain };
+}
+
 /** The seq-ordered checksum chain that the session digest hashes. */
-function chainString(recs: Rec[]): string {
-  return recs.map((r) => `${r.seq}\t${r.checksum}`).join("\n");
+function chainItems(recs: Rec[]): Array<{ name: string; checksum: string }> {
+  return recs.map((r) => ({ name: String(r.seq), checksum: r.checksum }));
 }
 
 interface WitnessContext {
@@ -169,10 +196,47 @@ interface WitnessContext {
   logger: { info: (m: string, p?: Record<string, unknown>) => void };
 }
 
+/**
+ * Seal an arbitrary ordered item list (name + checksum) into a manifest
+ * attestation. The generalized counterpart to the ledger `seal`: it does not
+ * read the record ledger — the caller (e.g. the `seal-bundle` workflow) passes
+ * the items, so this is pure over its input plus one resource write.
+ */
+export async function runSealManifest(
+  args: z.infer<typeof SealManifestArgsSchema>,
+  context: WitnessContext,
+): Promise<{ dataHandles: unknown[] }> {
+  const { digest } = await sealManifest(args.items);
+  const handle = await context.writeResource(
+    "attestation",
+    `${safeName(args.session)}-manifest`,
+    {
+      session: args.session,
+      kind: "manifest",
+      records: args.items.length,
+      items: args.items.map((i) => i.name),
+      clients: args.author ? [args.author] : [],
+      digest,
+      algo: "sha256-chain",
+      witnessedAt: new Date().toISOString(),
+      witness: "session-witness",
+    },
+  );
+  context.logger.info(
+    "Sealed manifest {session}: {n} items, digest {digest}",
+    {
+      session: args.session,
+      n: args.items.length,
+      digest: digest.slice(0, 12),
+    },
+  );
+  return { dataHandles: [handle] };
+}
+
 /** The session-witness model definition. */
 export const model = {
   type: "@vcjdeboer/session-witness",
-  version: "2026.06.21.1",
+  version: "2026.07.09.1",
   globalArguments: GlobalArgsSchema,
   resources: {
     "attestation": {
@@ -204,7 +268,7 @@ export const model = {
           args.recordDef,
           args.session,
         );
-        const digest = await sha256Hex(chainString(recs));
+        const { digest } = await sealManifest(chainItems(recs));
         const clients = [...new Set(recs.map((r) => r.client).filter(Boolean))];
         const seqs = recs.map((r) => r.seq);
         const seqRange = recs.length
@@ -237,6 +301,12 @@ export const model = {
         return { dataHandles: [handle] };
       },
     },
+    seal_manifest: {
+      description:
+        "Seal an ordered list of named {name,checksum} items into one sha256 digest + a manifest attestation (the bundle counterpart to `seal`); items are passed in, no ledger read",
+      arguments: SealManifestArgsSchema,
+      execute: runSealManifest,
+    },
     verify: {
       description:
         "Recompute a session's digest and report whether it matches a prior seal",
@@ -250,7 +320,7 @@ export const model = {
           args.recordDef,
           args.session,
         );
-        const actual = await sha256Hex(chainString(recs));
+        const { digest: actual } = await sealManifest(chainItems(recs));
         const match = actual === args.expectedDigest;
 
         const handle = await context.writeResource(

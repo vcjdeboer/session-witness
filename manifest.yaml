@@ -1,17 +1,21 @@
 manifestVersion: 1
 name: "@vcjdeboer/session-witness"
-version: "2026.06.21.1"
-description: "An ultralight, tamper-evident seal over a recorded session: chains the swamp content checksums of a session-record ledger's versions into one sha256 session digest and attests its authors; verify recomputes it. Alter any past record and the digest changes. The master member of the swamp session-* suite."
+version: "2026.07.09.1"
+description: "The Master member of the session-* suite: a tamper-evident seal over a recorded session. `seal` chains the per-version content checksums of a session-record ledger (in seq order) into one sha256 session digest and attests its authors; `verify` recomputes the digest and reports whether a sealed session still matches. `seal_manifest` generalizes the primitive to any ordered {name, checksum} item list, so a session-ingest bundle-manifest is sealed the same way. Alter any past record and the digest changes — the seal breaks. Ultralight: a content seal plus an authorship note, no keypairs."
 repository: "https://github.com/vcjdeboer/session-witness"
+
 paths:
   base: manifest
+
 models:
   - session_witness.ts
+
 additionalFiles:
   - README.md
   - LICENSE.md
+
 labels:
   - provenance
-  - integrity
   - reproducibility
-  - attestation
+  - integrity
+  - data-science
