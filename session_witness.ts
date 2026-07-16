@@ -236,7 +236,7 @@ export async function runSealManifest(
 /** The session-witness model definition. */
 export const model = {
   type: "@vcjdeboer/session-witness",
-  version: "2026.07.09.1",
+  version: "2026.07.16.1",
   globalArguments: GlobalArgsSchema,
   resources: {
     "attestation": {

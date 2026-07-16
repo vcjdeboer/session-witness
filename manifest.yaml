@@ -1,7 +1,7 @@
 manifestVersion: 1
 name: "@vcjdeboer/session-witness"
-version: "2026.07.09.1"
-description: "The Master member of the session-* suite: a tamper-evident seal over a recorded session. `seal` chains the per-version content checksums of a session-record ledger (in seq order) into one sha256 session digest and attests its authors; `verify` recomputes the digest and reports whether a sealed session still matches. `seal_manifest` generalizes the primitive to any ordered {name, checksum} item list, so a session-ingest bundle-manifest is sealed the same way. Alter any past record and the digest changes — the seal breaks. Ultralight: a content seal plus an authorship note, no keypairs."
+version: "2026.07.16.1"
+description: "Prove a recorded data-science session hasn't been altered since you sealed it. The Master member of the session-* suite: a tamper-evident seal + authorship attestation, with no keypairs or infrastructure. `seal` chains the per-version content checksums of a session-record ledger (in sequence) into one sha256 session digest and attests its authors; `verify` recomputes the digest and reports whether a sealed session still matches. `seal_manifest` generalizes the primitive to ANY ordered {name, checksum} list — so a session-ingest bundle-manifest seals exactly the same way. Change one byte of any past record and the digest changes: the seal breaks, loudly. Ultralight integrity for governed, reproducible science — the trust layer under the whole suite."
 repository: "https://github.com/vcjdeboer/session-witness"
 
 paths:
